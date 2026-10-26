@@ -1,0 +1,23 @@
+# Build output
+.gradle/
+.kotlin/
+build/
+*.apk
+*.aab
+
+# Machine-specific
+local.properties
+.idea/
+*.iml
+.DS_Store
+
+# Signing: keys, certificates and their passwords never go in the repo
+keystore.properties
+*.jks
+*.keystore
+*.p12
+*.pem
+*.pk8
+*.der
+*.crt
+*.key

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 16:9 TV banner: dark tile with a 2x2 grid of squares. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+    <path android:fillColor="#24252B" android:pathData="M0,0h320v180h-320z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M118,48h38v38h-38z M164,48h38v38h-38z M118,94h38v38h-38z" />
+    <path android:fillColor="#8AB4F8" android:pathData="M164,94h38v38h-38z" />
+</vector>

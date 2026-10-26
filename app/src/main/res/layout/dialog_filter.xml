@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Filter: which services the search covers. Rows and Done span the whole width.
+     The window is sized in code: 420dp wide, as tall as its content but at most 80% of the screen. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/filter_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/dialog_bg"
+    android:clipToOutline="true"
+    android:orientation="vertical"
+    android:paddingTop="20dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="20dp"
+        android:layout_marginBottom="14dp"
+        android:text="@string/filter_title"
+        android:textColor="@color/text"
+        android:textSize="20sp" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:id="@+id/filter_list"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+    </ScrollView>
+
+    <TextView
+        android:id="@+id/filter_done"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:background="@drawable/filter_done_bg"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center"
+        android:text="@string/done"
+        android:textColor="@color/text"
+        android:textSize="16sp" />
+</LinearLayout>

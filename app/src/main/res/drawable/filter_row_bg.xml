@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Filter row: selected = inverted (white), not selected = normal (dark),
+     focused = a shade in between (no zoom, no border). -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/filter_focused_selected" android:state_focused="true" android:state_selected="true" />
+    <item android:drawable="@color/filter_focused" android:state_focused="true" />
+    <item android:drawable="@color/text" android:state_selected="true" />
+    <item android:drawable="@color/tile" />
+</selector>

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Light Launcher</string>
+    <string name="settings">Settings</string>
+    <string name="cannot_open">Can\'t open this app</string>
+    <string name="not_installed">not installed</string>
+    <string name="app_not_installed">%1$s isn\'t installed</string>
+    <string name="search_hint">Search movies and series</string>
+    <string name="filter">Filter</string>
+    <string name="filter_title">Search in</string>
+    <string name="done">Done</string>
+    <string name="close_search">Close search</string>
+    <string name="continue_watching">Continue watching</string>
+    <string name="min_left">%1$d min left</string>
+    <string name="h_min_left">%1$d h %2$d min left</string>
+    <string name="min_watched">%1$d min watched</string>
+    <string name="searching">Searching…</string>
+    <string name="no_results">No results in your services</string>
+    <string name="search_failed">Search failed. Check the connection.</string>
+    <string name="no_services_selected">No services selected. Use Filter.</string>
+
+    <color name="bg">#000000</color>
+    <color name="tile">#24252B</color>
+    <color name="text">#FFFFFF</color>
+    <color name="hint">#8A8C94</color>
+    <!-- Filter rows while focused: halfway shades -->
+    <color name="filter_focused">#4A4B52</color>
+    <color name="filter_focused_selected">#B8B9BE</color>
+
+    <dimen name="icon_padding">24dp</dimen>
+
+    <style name="Theme.Launcher" parent="@android:style/Theme.DeviceDefault.NoActionBar">
+        <item name="android:windowBackground">@color/bg</item>
+    </style>
+</resources>

@@ -1,0 +1,255 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!-- Moving dark RGB background (RgbBackground) -->
+    <View
+        android:id="@+id/background"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <!-- Clips its children (top bar, scroll area) to their own space, so scrolled tiles pass
+         behind the top bar instead of over it. -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <!-- Top bar: frosted panel (blurred copy of what scrolls under it) behind the controls -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+        <com.lwphs.tvlauncher.FrostedBar
+            android:id="@+id/frosted"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:alpha="0" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:clipChildren="false"
+            android:orientation="vertical">
+
+        <!-- Vertical padding leaves room for the focus glow of the bar's own buttons -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="40dp"
+            android:paddingTop="24dp"
+            android:paddingEnd="40dp"
+            android:paddingBottom="8dp">
+
+            <TextClock
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:format12Hour="HH:mm"
+                android:format24Hour="HH:mm"
+                android:textColor="@color/text"
+                android:textSize="34sp" />
+
+            <com.lwphs.tvlauncher.SearchField
+                android:id="@+id/search"
+                android:layout_width="0dp"
+                android:layout_height="40dp"
+                android:layout_marginStart="32dp"
+                android:layout_marginEnd="12dp"
+                android:layout_weight="1"
+                android:background="@drawable/tile_bg"
+                android:foreground="@drawable/tile_focus"
+                android:hint="@string/search_hint"
+                android:imeOptions="actionSearch"
+                android:importantForAutofill="no"
+                android:inputType="textVisiblePassword"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:textColor="@color/text"
+                android:textColorHint="@color/hint"
+                android:textSize="16sp" />
+
+            <!-- Closes the search; only shown while there is text -->
+            <TextView
+                android:id="@+id/clear"
+                android:layout_width="56dp"
+                android:layout_height="40dp"
+                android:layout_marginEnd="12dp"
+                android:background="@drawable/tile_bg"
+                android:clickable="true"
+                android:contentDescription="@string/close_search"
+                android:focusable="true"
+                android:foreground="@drawable/tile_focus"
+                android:gravity="center"
+                android:text="✕"
+                android:textColor="@color/text"
+                android:textSize="18sp"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/filter"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:layout_marginEnd="12dp"
+                android:background="@drawable/tile_bg"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="@drawable/tile_focus"
+                android:gravity="center"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:text="@string/filter"
+                android:textColor="@color/text"
+                android:textSize="16sp" />
+
+            <TextView
+                android:id="@+id/settings"
+                android:layout_width="56dp"
+                android:layout_height="40dp"
+                android:layout_marginEnd="7dp"
+                android:background="@drawable/tile_bg"
+                android:clickable="true"
+                android:contentDescription="@string/settings"
+                android:focusable="true"
+                android:foreground="@drawable/tile_focus"
+                android:gravity="center"
+                android:text="⚙"
+                android:textColor="@color/text"
+                android:textSize="22sp" />
+        </LinearLayout>
+
+        <!-- Info bar: the focused search result, in big text (search mode only) -->
+        <LinearLayout
+            android:id="@+id/info"
+            android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:layout_marginStart="47dp"
+            android:layout_marginEnd="40dp"
+            android:gravity="center_vertical"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/info_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/text"
+                android:textSize="26sp" />
+
+            <TextView
+                android:id="@+id/info_where"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/text"
+                android:textSize="15sp" />
+        </LinearLayout>
+        </LinearLayout>
+        </FrameLayout>
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1">
+
+        <!-- Full screen width; the 40dp side margins are padding inside it, so the focus glow of
+             the first and last column has room and isn't cut off. -->
+        <ScrollView
+            android:id="@+id/scroll"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:paddingStart="40dp"
+            android:paddingTop="8dp"
+            android:paddingEnd="40dp"
+            android:paddingBottom="24dp"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:clipChildren="false"
+                android:orientation="vertical">
+
+                <!-- Continue watching: last titles played in any app (WatchTracker) -->
+                <LinearLayout
+                    android:id="@+id/watching_section"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="8dp"
+                    android:clipChildren="false"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="7dp"
+                        android:text="@string/continue_watching"
+                        android:textColor="@color/hint"
+                        android:textSize="14sp" />
+
+                    <HorizontalScrollView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:clipChildren="false"
+                        android:clipToPadding="false"
+                        android:scrollbars="none">
+
+                        <LinearLayout
+                            android:id="@+id/watching"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:clipChildren="false"
+                            android:orientation="horizontal" />
+                    </HorizontalScrollView>
+                </LinearLayout>
+
+                <!-- Installed apps -->
+                <GridLayout
+                    android:id="@+id/grid"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:clipChildren="false"
+                    android:columnCount="5" />
+
+                <!-- Searching… / no results / errors -->
+                <TextView
+                    android:id="@+id/status"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="7dp"
+                    android:textColor="@color/hint"
+                    android:textSize="18sp"
+                    android:visibility="gone" />
+
+                <!-- Search results -->
+                <GridLayout
+                    android:id="@+id/results"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:clipChildren="false"
+                    android:columnCount="7"
+                    android:visibility="gone" />
+            </LinearLayout>
+        </ScrollView>
+
+            <!-- Shadow under the top bar: tiles scrolling up fade out instead of being cut.
+                 Only shown once scrolled (alpha set in code). -->
+            <View
+                android:id="@+id/top_shadow"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:alpha="0"
+                android:background="@drawable/top_shadow" />
+        </FrameLayout>
+    </LinearLayout>
+</FrameLayout>
