@@ -3,6 +3,12 @@
 A small, fast home screen for Android TV / Google TV, with no ads, no recommendations feed and
 no tracking. It only asks for the internet permission.
 
+![Home screen](screenshots/home.png)
+
+| Search | Filter |
+|---|---|
+| ![Search results](screenshots/search.png) | ![Service filter](screenshots/filter.png) |
+
 - **Your apps**, most recently used first, then alphabetical.
 - **Title search** across the streaming services you pay for (via JustWatch), showing only titles
   included in your subscriptions. Picking a result opens it directly in the right app; if more than
@@ -16,8 +22,8 @@ no tracking. It only asks for the internet permission.
 Supported services: Netflix, HBO Max, Disney+, Prime Video, Movistar Plus+, Atresplayer, RTVE Play,
 Crunchyroll, Apple TV, Filmin, SkyShowtime and MUBI.
 
-> The search is set up for **Spain** (country `ES`, Spanish titles). To use it elsewhere, change
-> `COUNTRY`, `LANGUAGE` and the service list in `JustWatch.java`.
+> The search is set up for **Spain** (country `ES`, Spanish titles). See
+> [Other countries and languages](#other-countries-and-languages) to change it.
 
 ## Requirements
 
@@ -71,6 +77,45 @@ any installed one. The only way around it is disabling Google's launcher and set
 setup app (you'll have to reconnect), and if the launcher is uninstalled with nothing else
 enabled, the TV has no home screen. Undo it with `adb shell pm enable --user 0 <package>` for
 both packages.
+
+## Other countries and languages
+
+Everything that depends on the country or language, all in `app/src/main/`:
+
+| What | Where | Spain setting | Change it to |
+|---|---|---|---|
+| Search country | `JustWatch.java`, `COUNTRY` | `"ES"` | Your two-letter country code: `"US"`, `"GB"`, `"MX"`… Decides which catalogue and services are searched. |
+| Search language | `JustWatch.java`, `LANGUAGE` | `"es"` | `"en"`, `"fr"`… Decides the language of titles **and posters**. |
+| Services | `JustWatch.java`, `SERVICES` | 12 services | The services sold in your country (see below). |
+| Prime Video titles in Continue watching | `PrimeVideo.java`, the `/-/es/` in the page address and `Accept-Language` `es-ES` | Spanish | Your language, e.g. `/-/en/` and `en-US`. |
+| Filmin | `Filmin.java`, `MainActivity.java` (`FILMIN_TV_LINK`) | `filmin.es`, `/es` | Filmin is Spain-only; elsewhere, remove it from `SERVICES`. Its code then never runs. |
+| Interface text | `res/values/values.xml` | English | Add a translation (see below). |
+
+App sorting follows the TV's language by itself.
+
+### Services for your country
+
+Each entry in `SERVICES` is the service's JustWatch code, its Android TV app package and the name
+shown. **JustWatch codes differ between countries**: Prime Video is `prv` in Spain but `amp` in
+the US. List the codes for your country (here the US):
+
+```bash
+curl -s https://apis.justwatch.com/graphql -H "Content-Type: application/json" -d "{\"query\":\"{ packages(country: US, platform: WEB) { shortName clearName } }\"}"
+```
+
+Find an app's package name on the TV with `adb shell pm list packages`, or in its Play Store
+address (`...details?id=<package>`). Use the **TV** app's package, which is sometimes different
+from the phone app's (Filmin's TV app is `com.filmin.androidtv`, its phone app `com.filmin.filmin`).
+
+Spain-only services in the current list: Movistar Plus+, Atresplayer, RTVE Play and Filmin.
+SkyShowtime is only in some European countries.
+
+### Translating the interface
+
+Copy the `<string>` lines from `res/values/values.xml` into a new
+`res/values-<language>/strings.xml` (for example `values-es/strings.xml`) and translate the text
+between the tags, keeping the `name`s and the `%1$s` / `%1$d` placeholders. The TV picks the
+translation that matches its language.
 
 ## How it works and caveats
 
