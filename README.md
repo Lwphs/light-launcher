@@ -15,8 +15,9 @@ no tracking. It only asks for the internet permission.
   one service has it, you choose. Services whose app isn't installed are greyed out and lead to the
   Play Store.
 - **Filter** to choose which services the search covers.
-- **Continue watching**: the last 10 titles played in any app, from the TV's "now playing"
-  information (needs notification access, see below).
+- **Continue watching**: the last 10 titles you haven't finished, in any app, with one card per
+  series (its latest episode). It uses the TV's "now playing" information (needs notification
+  access, see below).
 - Dark moving background, frosted top bar. About 75 KB.
 
 Supported services: Netflix, HBO Max, Disney+, Prime Video, Movistar Plus+, Atresplayer, RTVE Play,
@@ -124,9 +125,14 @@ translation that matches its language.
   affiliated with JustWatch or any streaming service.
 - Prime Video titles in Continue watching come from Prime Video's public title pages, and Filmin
   links from Filmin's public pages, because their TV apps don't share titles or accept web links.
+- Movistar Plus+ titles open through the app's own `appmovistar://` links, since its TV app ignores
+  web links. If Movistar isn't open yet, it shows its profile picker first and moves on by itself
+  after 15 seconds.
 - Network access is limited to these services, with size limits and a fixed list of image servers
   (`Net.java`).
-- Watch history and the service filter stay on the TV; nothing is sent anywhere else.
+- Watch history and the service filter are stored only on the TV. To find a picture and a direct
+  link, each title in Continue watching is looked up once: its name is searched on JustWatch
+  (Prime Video titles: their public page, as above).
 
 ## License
 

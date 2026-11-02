@@ -51,6 +51,7 @@ final class Net {
         try {
             conn.setConnectTimeout(TIMEOUT_MS);
             conn.setReadTimeout(TIMEOUT_MS);
+            conn.setInstanceFollowRedirects(false); // a redirect could lead off the allowed image servers
             if (conn.getResponseCode() != 200) return null;
             try (InputStream in = conn.getInputStream()) {
                 data = readAll(in, MAX_IMAGE_BYTES);

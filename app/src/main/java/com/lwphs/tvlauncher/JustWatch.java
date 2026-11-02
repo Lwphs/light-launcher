@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Title search through JustWatch's (unofficial) GraphQL API, the one justwatch.com uses.
@@ -152,10 +153,36 @@ final class JustWatch {
         return null;
     }
 
-    /** Best match for {@code name} included in {@code service}'s subscription, or null. */
-    static Title find(String name, Service service) throws IOException, JSONException {
-        List<Title> found = search(name, Collections.singletonList(service), 1);
-        return found.isEmpty() ? null : found.get(0);
+    /**
+     * The title that one of {@code names} refers to in {@code service}'s subscription, or null, so a
+     * lookup never attaches some unrelated title. Apps differ in which field holds a show's name, so
+     * each name is searched. The same name wins; otherwise the longest title name that starts one of
+     * the names, as whole words ("Stranger Things" for "Stranger Things: Temporada 4", but never
+     * "Younger" for "You", nor "Will" for an episode called "La desaparición de Will Byers").
+     */
+    static Title find(Service service, String... names) throws IOException, JSONException {
+        Title best = null;
+        int bestScore = 0;
+        for (String name : names) {
+            if (name.isEmpty()) continue;
+            for (Title t : search(name, Collections.singletonList(service), 5)) {
+                int score = score(t.name, name);
+                if (score == Integer.MAX_VALUE) return t;
+                if (score > bestScore) {
+                    best = t;
+                    bestScore = score;
+                }
+            }
+        }
+        return best;
+    }
+
+    /** How well JustWatch's {@code title} fits a {@code name} an app sent (see find); 0 = not at all. */
+    static int score(String title, String name) {
+        String t = title.trim().toLowerCase(Locale.ROOT), n = name.trim().toLowerCase(Locale.ROOT);
+        if (t.isEmpty()) return 0;
+        if (t.equals(n)) return Integer.MAX_VALUE;
+        return n.startsWith(t) && !Character.isLetterOrDigit(n.charAt(t.length())) ? t.length() : 0;
     }
 
     private static String post(String json) throws IOException {

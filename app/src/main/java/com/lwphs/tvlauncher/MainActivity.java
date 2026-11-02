@@ -24,6 +24,7 @@ import android.text.SpannableStringBuilder;
 import android.text.style.ForegroundColorSpan;
 import android.text.TextWatcher;
 import android.util.LruCache;
+import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -34,6 +35,7 @@ import android.widget.GridLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.window.OnBackInvokedDispatcher;
@@ -55,8 +57,10 @@ public class MainActivity extends Activity {
     private static final int MAX_RESULTS = 28; // 4 rows of 7 posters
     private static final String FILMIN = "com.filmin.androidtv";
     private static final String FILMIN_TV_LINK = "https://androidtv.filmin.com/es";
+    private static final String MOVISTAR = "com.movistarplus.androidtv";
 
     private GridLayout grid;
+    private ScrollView scroll;
     private View watchingSection;
     private LinearLayout watching;
     private GridLayout results;
@@ -71,6 +75,8 @@ public class MainActivity extends Activity {
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final ExecutorService searchExecutor = Executors.newSingleThreadExecutor();
+    // "Continue watching" lookups get their own thread, so a search or a link never waits behind them.
+    private final ExecutorService lookupExecutor = Executors.newSingleThreadExecutor();
     private final ExecutorService imageExecutor = Executors.newFixedThreadPool(4);
     private final LruCache<String, Bitmap> posters = new LruCache<String, Bitmap>(16 * 1024 * 1024) {
         @Override
@@ -81,6 +87,8 @@ public class MainActivity extends Activity {
     private final Runnable runSearch = this::runSearch;
     // Bumped on every new search so late answers to old ones are ignored.
     private int searchSeq;
+    // Watch-history keys being looked up right now, so coming home again doesn't start them twice.
+    private final Set<String> lookingUp = new HashSet<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -90,7 +98,7 @@ public class MainActivity extends Activity {
         // The shadow under the top bar fades in as soon as something has scrolled under it, and
         // the frosted bar redraws its blurred copy whenever what's under it may have changed.
         View topShadow = findViewById(R.id.top_shadow);
-        View scroll = findViewById(R.id.scroll);
+        scroll = findViewById(R.id.scroll);
         FrostedBar frosted = findViewById(R.id.frosted);
         frosted.follow(scroll, dp(12));
         scroll.setOnScrollChangeListener((v, x, y, oldX, oldY) -> {
@@ -172,6 +180,7 @@ public class MainActivity extends Activity {
         loadWatching();
         loadApps();
         linkHome();
+        scroll.scrollTo(0, 0); // from the top, not wherever the list was left
         View first = watching.getChildCount() > 0 ? watching.getChildAt(0) : grid.getChildAt(0);
         if (first != null) first.requestFocus();
     }
@@ -180,6 +189,7 @@ public class MainActivity extends Activity {
     protected void onDestroy() {
         super.onDestroy();
         searchExecutor.shutdownNow();
+        lookupExecutor.shutdownNow();
         imageExecutor.shutdownNow();
     }
 
@@ -248,14 +258,30 @@ public class MainActivity extends Activity {
         }
     }
 
+    /**
+     * Up from a top row (linked to the search bar by linkTopRow) gets there in one press. Without
+     * this, while the list isn't scrolled all the way up, the scroll view spends the press scrolling.
+     */
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        View focused = getCurrentFocus();
+        if (event.getKeyCode() == KeyEvent.KEYCODE_DPAD_UP && event.getAction() == KeyEvent.ACTION_DOWN
+                && focused != null && focused.getNextFocusUpId() == R.id.search && search.requestFocus()) {
+            scroll.smoothScrollTo(0, 0);
+            return true;
+        }
+        return super.dispatchKeyEvent(event);
+    }
+
     // ---- Continue watching ----
 
     private void loadWatching() {
         watching.removeAllViews();
         LayoutInflater inflater = getLayoutInflater();
         for (WatchHistory.Entry e : WatchHistory.load(this)) {
-            if (e.hasLength() && e.left() < WatchHistory.FINISHED_MS) continue; // already watched to the end
+            if (e.finished()) continue; // already watched to the end
             View card = inflater.inflate(R.layout.watch_card, watching, false);
+            card.setTag(e); // lets a lookup that finishes later find this card (see showLookup)
             ImageView image = card.findViewById(R.id.watch_image);
             TextView name = card.findViewById(R.id.watch_title);
             name.setText(cardTitle(e));
@@ -273,7 +299,7 @@ public class MainActivity extends Activity {
 
             if (e.image != null) loadPoster(image, e.image);
             else if (e.art != null) image.setImageBitmap(BitmapFactory.decodeFile(e.art));
-            if (!e.lookedUp) lookUp(e, image, name);
+            if (!e.lookedUp) lookUp(e);
 
             card.setContentDescription(e.title);
             card.setOnClickListener(v -> openWatched(e));
@@ -306,9 +332,9 @@ public class MainActivity extends Activity {
      * Looks the title up once: on Prime Video's page for Prime (which sends only an ID), else on
      * JustWatch. Gives a better picture, the name if it was missing, and a link straight to it.
      */
-    private void lookUp(WatchHistory.Entry e, ImageView image, TextView name) {
+    private void lookUp(WatchHistory.Entry e) {
         if (e.pkg.equals(PrimeVideo.PACKAGE) && PrimeVideo.isContentId(e.mediaId)) {
-            searchExecutor.execute(() -> {
+            startLookup(e, () -> {
                 PrimeVideo.Page page;
                 try {
                     page = PrimeVideo.page(e.mediaId);
@@ -318,47 +344,70 @@ public class MainActivity extends Activity {
                 if (page != null) {
                     e.title = page.name;
                     e.image = page.image;
+                    e.series = PrimeVideo.series(page.name);
                 }
                 e.link = PrimeVideo.link(e.mediaId);
                 e.lookedUp = true;
                 WatchHistory.update(this, e);
-                runOnUiThread(() -> {
-                    name.setText(cardTitle(e));
-                    if (e.image != null) loadPoster(image, e.image);
-                });
+                runOnUiThread(() -> showLookup(e));
             });
             return;
         }
 
         JustWatch.Service service = JustWatch.serviceForPackage(e.pkg);
         if (service == null) return; // not a streaming service (e.g. YouTube): keep the app's own artwork
-        searchExecutor.execute(() -> {
-            JustWatch.Title found = null;
+        startLookup(e, () -> {
+            JustWatch.Title found;
             try {
-                // Apps differ in which field holds the show's name, so try both.
-                for (String candidate : new String[]{e.title, e.subtitle}) {
-                    if (found != null || candidate.isEmpty()) continue;
-                    JustWatch.Title t = JustWatch.find(candidate, service);
-                    if (t != null && sameName(t.name, candidate)) found = t;
-                }
+                found = JustWatch.find(service, e.title, e.subtitle);
             } catch (Exception ex) {
                 return; // offline: try again next time
             }
             if (found != null) {
                 e.image = found.backdropUrl;
                 if (!found.offers.isEmpty()) e.link = found.offers.get(0).url;
+                e.series = found.name;
             }
             e.lookedUp = true;
             WatchHistory.update(this, e);
-            String url = e.image;
-            if (url != null) runOnUiThread(() -> loadPoster(image, url));
+            runOnUiThread(() -> showLookup(e));
         });
     }
 
-    /** Loose name match, so a lookup never attaches some unrelated title. */
-    private static boolean sameName(String a, String b) {
-        String x = a.toLowerCase(), y = b.toLowerCase();
-        return x.contains(y) || y.contains(x);
+    /** Runs {@code lookup} on the lookup thread, unless one for the same title is still running. */
+    private void startLookup(WatchHistory.Entry e, Runnable lookup) {
+        String key = e.key();
+        if (!lookingUp.add(key)) return; // the running one updates the card when it's done
+        lookupExecutor.execute(() -> {
+            try {
+                lookup.run();
+            } finally {
+                runOnUiThread(() -> lookingUp.remove(key));
+            }
+        });
+    }
+
+    /** Shows what a lookup found on the title's card; the row may have been rebuilt since it started. */
+    private void showLookup(WatchHistory.Entry looked) {
+        for (int i = 0; i < watching.getChildCount(); i++) {
+            View card = watching.getChildAt(i);
+            WatchHistory.Entry shown = (WatchHistory.Entry) card.getTag();
+            if (!shown.key().equals(looked.key())) continue;
+            shown.copyLookup(looked);
+            ((TextView) card.findViewById(R.id.watch_title)).setText(cardTitle(shown));
+            if (shown.image != null) loadPoster(card.findViewById(R.id.watch_image), shown.image);
+        }
+        // With its series known, older episodes of it leave the row (newest first), as they just
+        // left the history.
+        for (int i = watching.getChildCount() - 1; i > 0; i--) {
+            WatchHistory.Entry older = (WatchHistory.Entry) watching.getChildAt(i).getTag();
+            for (int j = 0; j < i; j++) {
+                if (older.sameSeries((WatchHistory.Entry) watching.getChildAt(j).getTag())) {
+                    watching.removeViewAt(i);
+                    break;
+                }
+            }
+        }
     }
 
     private void openWatched(WatchHistory.Entry e) {
@@ -642,7 +691,8 @@ public class MainActivity extends Activity {
             });
             return;
         }
-        Intent view = new Intent(Intent.ACTION_VIEW, Uri.parse(url))
+        Uri uri = Uri.parse(pkg.equals(MOVISTAR) ? movistarLink(url) : url);
+        Intent view = new Intent(Intent.ACTION_VIEW, uri)
                 .setPackage(pkg)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         // A running Filmin ignores new links, so it starts over with this one.
@@ -658,5 +708,15 @@ public class MainActivity extends Activity {
             startActivity(app.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
         }
         lastUsed.edit().putLong(pkg, System.currentTimeMillis()).apply();
+    }
+
+    /**
+     * Movistar Plus+'s TV app ignores its web links (what JustWatch gives) and only opens a title
+     * from "appmovistar://movistarplus.es/ficha?id=<id>", with the web link's ID. If the app isn't
+     * running yet, it shows its profile picker first, which moves on by itself after 15 seconds.
+     */
+    private static String movistarLink(String webUrl) {
+        String id = Uri.parse(webUrl).getQueryParameter("id");
+        return id != null && id.matches("\\d+") ? "appmovistar://movistarplus.es/ficha?id=" + id : webUrl;
     }
 }

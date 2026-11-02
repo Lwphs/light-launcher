@@ -37,6 +37,15 @@ final class PrimeVideo {
         return "https://app.primevideo.com/detail?gti=" + contentId;
     }
 
+    /**
+     * The series in a page name like "The Boys - 1.ª temporada" or "The Boys - Temporada 2" (an
+     * episode's page is its season's), so all seasons group together; else the whole name.
+     */
+    static String series(String pageName) {
+        int dash = pageName.lastIndexOf(" - ");
+        return dash > 0 && pageName.substring(dash).matches(".*\\d.*") ? pageName.substring(0, dash) : pageName;
+    }
+
     /** Name and picture from the title's public page, or null if they can't be read. */
     static Page page(String contentId) throws IOException {
         HttpURLConnection conn = (HttpURLConnection) new URL(

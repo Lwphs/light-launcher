@@ -37,6 +37,7 @@ final class WatchHistory {
         String art;       // the app's own artwork, saved as a local file; may be null
         String image;     // picture URL (JustWatch or the app's page), once looked up
         String link;      // link straight to the title in its app, once looked up
+        String series = ""; // the film or show the lookup found, so episodes group; "" if none
         boolean lookedUp;
 
         String key() {
@@ -51,11 +52,30 @@ final class WatchHistory {
             return Math.max(0, duration - position);
         }
 
+        /** Watched to the end: hidden from "Continue watching". */
+        boolean finished() {
+            return hasLength() && left() < FINISHED_MS;
+        }
+
+        /** Same app and same film or series as {@code other}, by their lookups: another episode counts. */
+        boolean sameSeries(Entry other) {
+            return !series.isEmpty() && pkg.equals(other.pkg) && series.equalsIgnoreCase(other.series);
+        }
+
+        /** Takes what a lookup found for this title: picture, link, series, and the name if the app sent none. */
+        void copyLookup(Entry looked) {
+            if (title.isEmpty()) title = looked.title;
+            image = looked.image;
+            link = looked.link;
+            series = looked.series;
+            lookedUp = looked.lookedUp;
+        }
+
         JSONObject toJson() throws JSONException {
             return new JSONObject().put("pkg", pkg).put("title", title).put("subtitle", subtitle)
                     .put("mediaId", mediaId).put("duration", duration).put("position", position)
                     .put("updated", updated).put("art", art).put("image", image).put("link", link)
-                    .put("lookedUp", lookedUp);
+                    .put("series", series).put("lookedUp", lookedUp);
         }
 
         static Entry fromJson(JSONObject o) {
@@ -70,7 +90,9 @@ final class WatchHistory {
             e.art = o.isNull("art") ? null : o.optString("art");
             e.image = o.isNull("image") ? null : o.optString("image");
             e.link = o.isNull("link") ? null : o.optString("link");
-            e.lookedUp = o.optBoolean("lookedUp");
+            e.series = o.optString("series");
+            // Titles looked up before series were kept are looked up once more, to find theirs.
+            e.lookedUp = o.optBoolean("lookedUp") && o.has("series");
             return e;
         }
     }
@@ -102,12 +124,13 @@ final class WatchHistory {
         prefs(c).edit().putString("entries", a.toString()).apply();
     }
 
-    /** Replaces the stored entry with the same key (used to save JustWatch lookups). */
-    static synchronized void update(Context c, Entry updated) {
+    /** Saves what a lookup found for a title, keeping any progress recorded while it ran. */
+    static synchronized void update(Context c, Entry looked) {
         List<Entry> list = load(c);
-        for (int i = 0; i < list.size(); i++) {
-            if (list.get(i).key().equals(updated.key())) list.set(i, updated);
+        for (Entry e : list) {
+            if (e.key().equals(looked.key())) e.copyLookup(looked);
         }
+        dropOlderEpisodes(list); // its series may only be known now
         save(c, list);
     }
 
@@ -149,21 +172,58 @@ final class WatchHistory {
                 // Same title again: keep what was already found/saved for it. Some apps
                 // (Atresplayer) drop the length now and then, so keep a known one.
                 if (e.duration == 0) e.duration = old.duration;
-                if (e.title.isEmpty()) e.title = old.title;
                 e.art = old.art;
-                e.image = old.image;
-                e.link = old.link;
-                e.lookedUp = old.lookedUp;
+                e.copyLookup(old);
             }
         }
+        if (!e.lookedUp) joinSeries(e, list);
         list.removeIf(old -> old.key().equals(e.key()));
         if (e.art == null) e.art = saveArt(c, m, e.key());
         list.add(0, e);
+        dropOlderEpisodes(list);
+        trim(list);
+        save(c, list);
+    }
+
+    /**
+     * If {@code e} is another episode of a series already in {@code list} (the app sends the
+     * series' name), it takes that series' picture and link right away, with no lookup needed.
+     */
+    static void joinSeries(Entry e, List<Entry> list) {
+        for (Entry old : list) {
+            if (old.pkg.equals(e.pkg) && !old.series.isEmpty()
+                    && (old.series.equalsIgnoreCase(e.title) || old.series.equalsIgnoreCase(e.subtitle))) {
+                e.copyLookup(old);
+                return;
+            }
+        }
+    }
+
+    /** Keeps only the newest title of each series (the list is newest first), so older episodes go. */
+    static void dropOlderEpisodes(List<Entry> list) {
+        for (int i = 0; i < list.size(); i++) {
+            for (int j = list.size() - 1; j > i; j--) {
+                Entry older = list.get(j);
+                if (!older.sameSeries(list.get(i))) continue;
+                list.remove(j);
+                if (older.art != null) new File(older.art).delete();
+            }
+        }
+    }
+
+    /** Keeps at most MAX titles. Those watched to the end are hidden anyway, so the oldest of those goes first. */
+    static void trim(List<Entry> list) {
         while (list.size() > MAX) {
-            Entry gone = list.remove(list.size() - 1);
+            int drop = list.size() - 1;
+            for (int i = list.size() - 1; i >= 0; i--) {
+                if (list.get(i).finished()) {
+                    drop = i;
+                    break;
+                }
+            }
+            Entry gone = list.remove(drop);
             if (gone.art != null) new File(gone.art).delete();
         }
-        save(c, list);
     }
 
     private static String appName(Context c, String pkg) {
